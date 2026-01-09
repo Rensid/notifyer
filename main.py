@@ -14,7 +14,6 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from daemon_notify import daemon_process
 from editor import NotificationEditor
 from storage import load_notifications, save_notifications
 
@@ -126,6 +125,4 @@ if __name__ == "__main__":
 
     window = MainWindow()
     window.show()
-    process = Process(target=daemon_process)
-    process.start()
     app.exec()

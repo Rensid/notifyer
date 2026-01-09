@@ -4,13 +4,13 @@ from enum import Enum
 from functools import partial
 from pathlib import Path
 from threading import Lock
+import socket
 
-import daemon
 import schedule
-from daemon import pidfile
 from notifypy import Notify
 
 from storage import DATA_FILE
+from config import SOCKET_PATH
 
 
 class Days(Enum):
@@ -33,7 +33,7 @@ def set_notify(description):
     notification.send()
 
 
-def load_schedule():
+def load_notifications():
     schedule.clear()
 
     data = json.loads(DATA_FILE.read_text())
@@ -47,26 +47,40 @@ def load_schedule():
             )
 
 
-def run():
-    last_mtime = None
+def handle_command(cmd: str):
+    if cmd == "reload":
+        load_notifications()
+        return b"ok"
 
-    while True:
-        try:
-            mtime = DATA_FILE.stat().st_mtime
+    if cmd == "status":
+        return b"alive"
 
-            if last_mtime is None or mtime > last_mtime:
-                load_schedule()
-                last_mtime = mtime
-
-            schedule.run_pending()
-            time.sleep(1)
-
-        except Exception as e:
-            print(f"Scheduler error: {e}")
-            time.sleep(5)
+    return b"unknown"
 
 
 def daemon_process():
-    print("Демон запущен")
-    # with daemon.DaemonContext(pidfile=pidfile.TimeoutPIDLockFile(str(LOCK))):
-    run()
+    if SOCKET_PATH.exists():
+        SOCKET_PATH.unlink()
+
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(str(SOCKET_PATH))
+    sock.listen()
+    sock.setblocking(False)
+
+    load_notifications()
+
+    while True:
+        try:
+            conn, _ = sock.accept()
+            cmd = conn.recv(1024).decode().strip()
+            response = handle_command(cmd)
+            # conn.send(response)
+            conn.close()
+        except BlockingIOError:
+            pass
+
+        schedule.run_pending()
+        time.sleep(1)
+
+
+daemon_process()
