@@ -74,7 +74,6 @@ def daemon_process():
             conn, _ = sock.accept()
             cmd = conn.recv(1024).decode().strip()
             response = handle_command(cmd)
-            # conn.send(response)
             conn.close()
         except BlockingIOError:
             pass
